@@ -1,0 +1,2099 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Augustus - Visão de Contas a Receber</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            --table-header-bg: #1e293b;
+            --row-hover: #334155;
+            --subtotal-bg: #1e293b;
+            --accent-color: #818cf8;
+            --accent-gradient: linear-gradient(135deg, #818cf8 0%, #6366f1 100%);
+            --received-color: #34d399;
+            --open-color: #fbbf24;
+            --original-color: #818cf8;
+            --font-main: 'Inter', sans-serif;
+            --font-display: 'Outfit', sans-serif;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-main);
+            padding: 1.5rem 1.5rem;
+            min-height: 100vh;
+        }
+        .dashboard-container { max-width: 1400px; margin: 0 auto; }
+        header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;
+            background: var(--bg-secondary); padding: 1.5rem 2rem; border-radius: 1rem;
+            box-shadow: var(--card-shadow); border: 1px solid var(--border-color);
+        }
+        .header-title-container h1 {
+            font-family: var(--font-display); font-size: 1.75rem; font-weight: 700;
+            background: var(--accent-gradient); -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent; margin-bottom: 0.25rem;
+        }
+        .header-title-container .update-dates { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .header-title-container .update-dates span { display: inline-block; }
+        .filter-bar {
+            display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;
+            background: var(--bg-secondary); padding: 1rem 1.5rem; border-radius: 1rem;
+            box-shadow: var(--card-shadow); border: 1px solid var(--border-color); flex-wrap: wrap;
+        }
+        .filter-bar label { font-weight: 600; color: var(--text-secondary); font-size: 0.875rem; }
+        .filter-bar input[type="date"] {
+            background: var(--bg-primary); border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; outline: none; cursor: pointer;
+        }
+        .filter-bar input[type="date"]:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+        .filter-bar select {
+            background: var(--bg-primary); border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; outline: none; cursor: pointer; min-width: 180px;
+        }
+        .filter-bar select:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+        .btn-apply { background: var(--accent-gradient); color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; cursor: pointer; font-weight: 500; }
+        .btn-apply:hover { opacity: 0.9; }
+        .btn-clear { background: var(--border-color); color: var(--text-primary); border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; cursor: pointer; font-weight: 500; }
+        .btn-clear:hover { background: var(--text-secondary); }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem; }
+        .kpi-card {
+            background: var(--bg-secondary); padding: 1.5rem; border-radius: 1rem;
+            box-shadow: var(--card-shadow); border: 1px solid var(--border-color);
+            display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden;
+        }
+        .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--card-accent, var(--accent-color)); }
+        .kpi-title { color: var(--text-secondary); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .kpi-value { font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; }
+        .kpi-desc { font-size: 0.75rem; color: var(--text-secondary); }
+        .dashboard-row { display: grid; grid-template-columns: 1fr; gap: 1.5rem; margin-bottom: 2.5rem; }
+        @media (min-width: 1024px) { .dashboard-row { grid-template-columns: 1.5fr 1fr; } }
+        .card-container { background: var(--bg-secondary); border-radius: 1rem; box-shadow: var(--card-shadow); border: 1px solid var(--border-color); padding: 1.5rem; }
+        .card-title { font-family: var(--font-display); font-size: 1.25rem; font-weight: 600; margin-bottom: 1.25rem; }
+        .chart-wrapper { height: 450px; position: relative; }
+        .top10-list { list-style: none; padding: 0; }
+        .top10-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color); }
+        .top10-item:last-child { border-bottom: none; }
+        .top10-rank { width: 28px; height: 28px; background: var(--accent-gradient); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; margin-right: 0.75rem; }
+        .top10-client { flex: 1; font-weight: 500; }
+        .top10-trips { font-size: 0.875rem; color: var(--text-secondary); }
+        .top10-separator { color: var(--text-secondary); margin: 0 0.25rem; }
+        .top10-value { font-weight: 600; color: var(--open-color); font-family: ui-monospace, monospace; }
+        .search-bar-container { margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: center; }
+        .search-input { flex: 1; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.75rem 1.25rem; border-radius: 0.75rem; font-size: 0.875rem; outline: none; width: 100%; }
+        .search-input:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+        .table-responsive { overflow-x: auto; border-radius: 0.75rem; border: 1px solid var(--border-color); }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
+        th { background: var(--table-header-bg); color: var(--text-primary); font-weight: 600; padding: 1rem; font-family: var(--font-display); border-bottom: 2px solid var(--border-color); }
+        td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
+        tr.data-row:hover { background-color: var(--row-hover); }
+        tr.client-header-row td { color: white; font-size: 1rem; padding: 0.75rem 1rem; border: none; }
+        tr.client-subheader-row td { color: white; font-size: 0.75rem; padding: 0.4rem 1rem; border: none; }
+        tr.subtotal-row { border-bottom: 2px solid var(--border-color); }
+        tr.subtotal-row td { color: var(--text-primary); border-top: 1px solid var(--border-color); }
+        tr.grand-total-row { background: var(--accent-gradient); color: #ffffff !important; }
+        tr.grand-total-row td { color: #ffffff !important; font-size: 1rem; padding: 1.25rem 1rem; }
+        .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .font-bold { font-weight: 700; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+
+        /* Login */
+        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-primary); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        #login-overlay.hidden { display: none; }
+        .login-box { background: var(--bg-secondary); padding: 2.5rem 3rem; border-radius: 1rem; box-shadow: var(--card-shadow); border: 1px solid var(--border-color); text-align: center; width: 100%; max-width: 400px; }
+        .login-box h2 { font-family: var(--font-display); font-size: 1.5rem; margin-bottom: 0.5rem; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .login-box p { color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.5rem; }
+        .login-box input[type="password"] { width: 100%; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 1rem; outline: none; margin-bottom: 1rem; }
+        .login-box input[type="password"]:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+        .login-box button { width: 100%; background: var(--accent-gradient); color: white; border: none; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 1rem; font-weight: 600; cursor: pointer; }
+        .login-box button:hover { opacity: 0.9; }
+        .login-error { color: #ef4444; font-size: 0.8rem; margin-top: 0.5rem; display: none; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+        .category-header-row td { border: none; }
+    </style>
+</head>
+<body>
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2>Augustus - Acesso Restrito</h2>
+            <p>Digite a senha para acessar o dashboard</p>
+            <input type="password" id="login-password" placeholder="Senha" onkeydown="if(event.key==='Enter')checkLogin()">
+            <button onclick="checkLogin()">Entrar</button>
+            <div class="login-error" id="login-error">Senha incorreta</div>
+        </div>
+    </div>
+
+    <div class="dashboard-container" style="display:none;" id="dashboard-content">
+        <header>
+            <div class="header-title-container">
+                <h1>Augustus - Visão de Contas a Receber</h1>
+                <div class="update-dates">
+                    <span>Última atualização: 30/06/2026</span>
+                    <span>|</span>
+                    <span>Última atualização pagamentos: 29/06/2026</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="filter-bar">
+            <label>Período:</label>
+            <input type="date" id="date-start" value="2025-12-26">
+            <span style="color: var(--text-secondary); font-size: 0.875rem;">até</span>
+            <input type="date" id="date-end" value="2026-06-16">
+            <span style="color: var(--border-color);">|</span>
+            <label>Cliente:</label>
+            <select id="client-filter">
+                <option value="">Todos</option>
+                <option value="BENEDITO LEITE">BENEDITO LEITE</option>
+<option value="CAFARNAUM PREFEITURA GABINETE DO PREFEITO">CAFARNAUM PREFEITURA GABINETE DO PREFEITO</option>
+<option value="CAMARA MUNICIPAL DE IRECE">CAMARA MUNICIPAL DE IRECE</option>
+<option value="CAMARA MUNICIPAL DE VEREADORES DE CAFARNAUM">CAMARA MUNICIPAL DE VEREADORES DE CAFARNAUM</option>
+<option value="CDS IRECE">CDS IRECE</option>
+<option value="FAZENDA BOM VIVER">FAZENDA BOM VIVER</option>
+<option value="FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO">FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO</option>
+<option value="GORDO DA BATERIA">GORDO DA BATERIA</option>
+<option value="IPIRA PREFEITURA GABINETE DO PREFEITO">IPIRA PREFEITURA GABINETE DO PREFEITO</option>
+<option value="IRECE PREFEITURA GABINETE DO PREFEITO">IRECE PREFEITURA GABINETE DO PREFEITO</option>
+<option value="JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA">JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA</option>
+<option value="JUSSARA PREFEITURA GABINETE DO PREFEITO">JUSSARA PREFEITURA GABINETE DO PREFEITO</option>
+<option value="MACHADO">MACHADO</option>
+<option value="PALMEIRAS PREFEITURA GABINETE DO PREFEITO">PALMEIRAS PREFEITURA GABINETE DO PREFEITO</option>
+<option value="PREFEITURA DE LAPAO">PREFEITURA DE LAPAO</option>
+<option value="PREFEITURA MUNICIPAL BONITO">PREFEITURA MUNICIPAL BONITO</option>
+<option value="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO">PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</option>
+<option value="PREFEITURA MUNICIPAL DE PINTADAS">PREFEITURA MUNICIPAL DE PINTADAS</option>
+<option value="PREFEITURA MUNICIPAL DE UIBAI">PREFEITURA MUNICIPAL DE UIBAI</option>
+<option value="PREFEITURA MUNICIPIAL DE ABAIRA">PREFEITURA MUNICIPIAL DE ABAIRA</option>
+<option value="PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO">PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO</option>
+<option value="Prefeitura Municipal de Canarana">Prefeitura Municipal de Canarana</option>
+<option value="RODOCON">RODOCON</option>
+<option value="W A MULTIPLA DISTRIBUIDOR LTDA">W A MULTIPLA DISTRIBUIDOR LTDA</option>
+<option value="WANTEL TECNOLOGIA LTDA.">WANTEL TECNOLOGIA LTDA.</option>
+            </select>
+            <button class="btn-apply" onclick="applyFilters()">Filtrar</button>
+            <button class="btn-clear" onclick="clearFilters()">Limpar</button>
+        </div>
+
+        <div class="kpi-grid">
+            <div class="kpi-card" style="--card-accent: var(--accent-color);">
+                <div>
+                    <div class="kpi-title">Total Clientes</div>
+                    <div class="kpi-value" id="kpi-clients">25</div>
+                </div>
+                <div class="kpi-desc">Clientes únicos na carteira</div>
+            </div>
+            <div class="kpi-card" style="--card-accent: #059669;">
+                <div>
+                    <div class="kpi-title">Prefeituras</div>
+                    <div class="kpi-value">R$ 1.382.453,09</div>
+                </div>
+                <div class="kpi-desc">Total em aberto - Prefeituras</div>
+            </div>
+            <div class="kpi-card" style="--card-accent: #d97706;">
+                <div>
+                    <div class="kpi-title">Câmaras</div>
+                    <div class="kpi-value">R$ 31.920,63</div>
+                </div>
+                <div class="kpi-desc">Total em aberto - Câmaras</div>
+            </div>
+            <div class="kpi-card" style="--card-accent: #6366f1;">
+                <div>
+                    <div class="kpi-title">Avulsos</div>
+                    <div class="kpi-value">R$ 45.720,59</div>
+                </div>
+                <div class="kpi-desc">Total em aberto - Avulsos</div>
+            </div>
+            <div class="kpi-card" style="--card-accent: var(--original-color);">
+                <div>
+                    <div class="kpi-title">Valor Total a Receber</div>
+                    <div class="kpi-value" id="kpi-original">R$ 1.460.094,31</div>
+                </div>
+                <div class="kpi-desc">Soma do valor em aberto das parcelas</div>
+            </div>
+        </div>
+
+        <div class="dashboard-row">
+            <div class="card-container">
+                <div class="card-title">Valores por cliente em aberto</div>
+                <div class="chart-wrapper">
+                    <canvas id="balanceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card-container">
+                <div class="card-title">Mais Notas Fiscais em Aberto</div>
+                <ul class="top10-list" id="top10-list">
+                    <li class="top10-item" data-client="PREFEITURA MUNICIPAL BONITO"><span class="top10-rank">1</span><span class="top10-client">PREFEITURA MUNICIPAL BONITO</span><span class="top10-trips">18 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 45.774,86</span></li><li class="top10-item" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO"><span class="top10-rank">2</span><span class="top10-client">IPIRA PREFEITURA GABINETE DO PREFEITO</span><span class="top10-trips">13 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 514.144,76</span></li><li class="top10-item" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO"><span class="top10-rank">3</span><span class="top10-client">PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</span><span class="top10-trips">12 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 68.347,91</span></li><li class="top10-item" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO"><span class="top10-rank">4</span><span class="top10-client">CAFARNAUM PREFEITURA GABINETE DO PREFEITO</span><span class="top10-trips">11 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 247.517,45</span></li><li class="top10-item" data-client="IRECE PREFEITURA GABINETE DO PREFEITO"><span class="top10-rank">5</span><span class="top10-client">IRECE PREFEITURA GABINETE DO PREFEITO</span><span class="top10-trips">5 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 118.815,30</span></li><li class="top10-item" data-client="PALMEIRAS PREFEITURA GABINETE DO PREFEITO"><span class="top10-rank">6</span><span class="top10-client">PALMEIRAS PREFEITURA GABINETE DO PREFEITO</span><span class="top10-trips">5 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 112.186,82</span></li><li class="top10-item" data-client="FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO"><span class="top10-rank">7</span><span class="top10-client">FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO</span><span class="top10-trips">4 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 60.662,90</span></li><li class="top10-item" data-client="PREFEITURA DE LAPAO"><span class="top10-rank">8</span><span class="top10-client">PREFEITURA DE LAPAO</span><span class="top10-trips">4 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 31.010,50</span></li><li class="top10-item" data-client="PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO"><span class="top10-rank">9</span><span class="top10-client">PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO</span><span class="top10-trips">3 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 105.101,80</span></li><li class="top10-item" data-client="Prefeitura Municipal de Canarana"><span class="top10-rank">10</span><span class="top10-client">Prefeitura Municipal de Canarana</span><span class="top10-trips">3 nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">R$ 22.599,32</span></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card-container" style="margin-bottom: 2.5rem;">
+            <div class="card-title">Detalhamento das Contas a Receber</div>
+
+            <div class="search-bar-container">
+                <input type="text" id="search-input" class="search-input" placeholder="Buscar por data, viagem/CTE..." onkeyup="applyFilters()">
+            </div>
+
+            <div class="table-responsive">
+                <table id="receivables-table">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th class="text-center">Data</th>
+                            <th>Viagem/CTE</th>
+                            <th class="text-right">Valor Total</th>
+                            <th class="text-right">Valor Recebido</th>
+                            <th class="text-right">Valor em Aberto</th>
+                        </tr>
+                    </thead>
+                    
+            <tr class="category-header-row" data-category="Prefeituras" style="background-color: #059669; color: white;">
+                <td colspan="6" class="font-bold" style="font-size: 1.1rem; padding: 0.75rem 1rem;">
+                    🏷️ Prefeituras — 83 parcela(s) | Total em Aberto: R$ 1.382.453,09
+                </td>
+            </tr>
+        
+
+                <tr class="client-header-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #6366f1; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 CAFARNAUM PREFEITURA GABINETE DO PREFEITO — 11 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #6366f1cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">03/03/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM - NF 7636</td>
+                        <td class="text-right font-mono" data-val="26885.5">R$ 26.885,50</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="26885.5">R$ 26.885,50</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">03/03/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM - NF 7638</td>
+                        <td class="text-right font-mono" data-val="18988.35">R$ 18.988,35</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="18988.35">R$ 18.988,35</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">03/03/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM - NF 7639</td>
+                        <td class="text-right font-mono" data-val="12241.4">R$ 12.241,40</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="12241.4">R$ 12.241,40</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">01/04/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM - NF 7820</td>
+                        <td class="text-right font-mono" data-val="21880.35">R$ 21.880,35</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="21880.35">R$ 21.880,35</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">05/05/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE CAFARNAUM NF - 7966</td>
+                        <td class="text-right font-mono" data-val="42702.85">R$ 42.702,85</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="42702.85">R$ 42.702,85</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">05/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM NF - 7967</td>
+                        <td class="text-right font-mono" data-val="19774.75">R$ 19.774,75</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="19774.75">R$ 19.774,75</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">05/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM NF - 7968</td>
+                        <td class="text-right font-mono" data-val="23700.35">R$ 23.700,35</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="23700.35">R$ 23.700,35</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">28/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM NF - 8112</td>
+                        <td class="text-right font-mono" data-val="18786.85">R$ 18.786,85</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="18786.85">R$ 18.786,85</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">28/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM NF - 8113</td>
+                        <td class="text-right font-mono" data-val="22241.35">R$ 22.241,35</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="22241.35">R$ 22.241,35</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">28/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM NF - 8114</td>
+                        <td class="text-right font-mono" data-val="20380.35">R$ 20.380,35</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="20380.35">R$ 20.380,35</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAFARNAUM PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">28/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CAFARNAUM NF - 8115</td>
+                        <td class="text-right font-mono" data-val="19935.35">R$ 19.935,35</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="19935.35">R$ 19.935,35</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #6366f115;">
+                    <td colspan="3" class="font-bold">Subtotal - CAFARNAUM PREFEITURA GABINETE DO PREFEITO</td>
+                    <td class="text-right font-bold font-mono" data-val="247517.45">R$ 247.517,45</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="247517.45">R$ 247.517,45</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO" data-category="Prefeituras" style="background-color: #10b981; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO — 4 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO" data-category="Prefeituras" style="background-color: #10b981cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO" data-category="Prefeituras">
+                        <td>FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO</td>
+                        <td class="text-center">29/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO- NF 8123</td>
+                        <td class="text-right font-mono" data-val="18156.56">R$ 18.156,56</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="18156.56">R$ 18.156,56</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO" data-category="Prefeituras">
+                        <td>FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO</td>
+                        <td class="text-center">12/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO - NF 8252</td>
+                        <td class="text-right font-mono" data-val="15152.41">R$ 15.152,41</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="15152.41">R$ 15.152,41</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO" data-category="Prefeituras">
+                        <td>FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO</td>
+                        <td class="text-center">12/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO - NF 8253</td>
+                        <td class="text-right font-mono" data-val="24228.61">R$ 24.228,61</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="24228.61">R$ 24.228,61</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO" data-category="Prefeituras">
+                        <td>FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO</td>
+                        <td class="text-center">12/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BARRO ALTO - NF 8254</td>
+                        <td class="text-right font-mono" data-val="3125.32">R$ 3.125,32</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3125.32">R$ 3.125,32</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #10b98115;">
+                    <td colspan="3" class="font-bold">Subtotal - FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO</td>
+                    <td class="text-right font-bold font-mono" data-val="60662.9">R$ 60.662,90</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="60662.9">R$ 60.662,90</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #f59e0b; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 IPIRA PREFEITURA GABINETE DO PREFEITO — 13 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #f59e0bcc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">04/02/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE IPIRA - NF 7528</td>
+                        <td class="text-right font-mono" data-val="1235.93">R$ 1.235,93</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1235.93">R$ 1.235,93</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">11/02/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE IPIRA - NF 7599</td>
+                        <td class="text-right font-mono" data-val="1136.9">R$ 1.136,90</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1136.9">R$ 1.136,90</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - NF 8219</td>
+                        <td class="text-right font-mono" data-val="1443.4">R$ 1.443,40</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1443.4">R$ 1.443,40</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE IPIRA - NF 8203</td>
+                        <td class="text-right font-mono" data-val="1501.69">R$ 1.501,69</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1501.69">R$ 1.501,69</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE IPIRA - NF 8202</td>
+                        <td class="text-right font-mono" data-val="6791.76">R$ 6.791,76</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="6791.76">R$ 6.791,76</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - NF 8214</td>
+                        <td class="text-right font-mono" data-val="19503.67">R$ 19.503,67</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="19503.67">R$ 19.503,67</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - NF 8217</td>
+                        <td class="text-right font-mono" data-val="23111.91">R$ 23.111,91</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="23111.91">R$ 23.111,91</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - NF 8215</td>
+                        <td class="text-right font-mono" data-val="28782.01">R$ 28.782,01</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="28782.01">R$ 28.782,01</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - NF 8213</td>
+                        <td class="text-right font-mono" data-val="35349.44">R$ 35.349,44</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="35349.44">R$ 35.349,44</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - NF 8212</td>
+                        <td class="text-right font-mono" data-val="38220.54">R$ 38.220,54</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="38220.54">R$ 38.220,54</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - NF 8216</td>
+                        <td class="text-right font-mono" data-val="68558.17">R$ 68.558,17</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="68558.17">R$ 68.558,17</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - NF 8218</td>
+                        <td class="text-right font-mono" data-val="46377.65">R$ 46.377,65</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="46377.65">R$ 46.377,65</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IPIRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">10/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE IPIRA - NF 8224</td>
+                        <td class="text-right font-mono" data-val="242131.69">R$ 242.131,69</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="242131.69">R$ 242.131,69</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #f59e0b15;">
+                    <td colspan="3" class="font-bold">Subtotal - IPIRA PREFEITURA GABINETE DO PREFEITO</td>
+                    <td class="text-right font-bold font-mono" data-val="514144.76">R$ 514.144,76</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="514144.76">R$ 514.144,76</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="IRECE PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #ef4444; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 IRECE PREFEITURA GABINETE DO PREFEITO — 5 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="IRECE PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #ef4444cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="IRECE PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IRECE PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">01/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE IRECE- NF 8156</td>
+                        <td class="text-right font-mono" data-val="5920.38">R$ 5.920,38</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="5920.38">R$ 5.920,38</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IRECE PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IRECE PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">01/06/2026</td>
+                        <td>SECRETARIA MUNICIPAL DE EDUCAÇÃO- NF 8157</td>
+                        <td class="text-right font-mono" data-val="25859.63">R$ 25.859,63</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="25859.63">R$ 25.859,63</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IRECE PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IRECE PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">16/06/2026</td>
+                        <td>SECRETARIA MUNICIPAL DE EDUCAÇÃO - NF 8263</td>
+                        <td class="text-right font-mono" data-val="24896.24">R$ 24.896,24</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="24896.24">R$ 24.896,24</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IRECE PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IRECE PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">16/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE IRECE - NF 8264</td>
+                        <td class="text-right font-mono" data-val="4769.85">R$ 4.769,85</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="4769.85">R$ 4.769,85</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="IRECE PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>IRECE PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">16/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE IRECE - FUMSAUDE - NF 8266</td>
+                        <td class="text-right font-mono" data-val="57369.2">R$ 57.369,20</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="57369.2">R$ 57.369,20</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #ef444415;">
+                    <td colspan="3" class="font-bold">Subtotal - IRECE PREFEITURA GABINETE DO PREFEITO</td>
+                    <td class="text-right font-bold font-mono" data-val="118815.29999999999">R$ 118.815,30</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="118815.29999999999">R$ 118.815,30</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="JUSSARA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #8b5cf6; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 JUSSARA PREFEITURA GABINETE DO PREFEITO — 1 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="JUSSARA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #8b5cf6cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="JUSSARA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>JUSSARA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">26/12/2025</td>
+                        <td>FUNDO MUNICIPAL DE ASSISTENCIA SOCIAL DE JUSSARA - NF 7201</td>
+                        <td class="text-right font-mono" data-val="5630.28">R$ 5.630,28</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="5630.28">R$ 5.630,28</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #8b5cf615;">
+                    <td colspan="3" class="font-bold">Subtotal - JUSSARA PREFEITURA GABINETE DO PREFEITO</td>
+                    <td class="text-right font-bold font-mono" data-val="5630.28">R$ 5.630,28</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="5630.28">R$ 5.630,28</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="PALMEIRAS PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #06b6d4; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 PALMEIRAS PREFEITURA GABINETE DO PREFEITO — 5 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="PALMEIRAS PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #06b6d4cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="PALMEIRAS PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>PALMEIRAS PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">06/04/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE PALMEIRAS - NF 7838</td>
+                        <td class="text-right font-mono" data-val="23204.26">R$ 23.204,26</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="23204.26">R$ 23.204,26</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PALMEIRAS PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>PALMEIRAS PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">13/05/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE SAUDE DE PALMEIRAS - NF 8071</td>
+                        <td class="text-right font-mono" data-val="19002.91">R$ 19.002,91</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="19002.91">R$ 19.002,91</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PALMEIRAS PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>PALMEIRAS PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">13/05/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE SAUDE DE PALMEIRAS - NF 8074</td>
+                        <td class="text-right font-mono" data-val="24392.97">R$ 24.392,97</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="24392.97">R$ 24.392,97</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PALMEIRAS PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>PALMEIRAS PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">08/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE PALMEIRAS - NF 8191</td>
+                        <td class="text-right font-mono" data-val="19535.59">R$ 19.535,59</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="19535.59">R$ 19.535,59</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PALMEIRAS PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>PALMEIRAS PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">08/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE PALMEIRAS - NF 8192</td>
+                        <td class="text-right font-mono" data-val="26051.09">R$ 26.051,09</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="26051.09">R$ 26.051,09</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #06b6d415;">
+                    <td colspan="3" class="font-bold">Subtotal - PALMEIRAS PREFEITURA GABINETE DO PREFEITO</td>
+                    <td class="text-right font-bold font-mono" data-val="112186.81999999999">R$ 112.186,82</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="112186.81999999999">R$ 112.186,82</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="PREFEITURA DE LAPAO" data-category="Prefeituras" style="background-color: #ec4899; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 PREFEITURA DE LAPAO — 4 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="PREFEITURA DE LAPAO" data-category="Prefeituras" style="background-color: #ec4899cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="PREFEITURA DE LAPAO" data-category="Prefeituras">
+                        <td>PREFEITURA DE LAPAO</td>
+                        <td class="text-center">12/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - LAPAO - NF 8247</td>
+                        <td class="text-right font-mono" data-val="4562.8">R$ 4.562,80</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="4562.8">R$ 4.562,80</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA DE LAPAO" data-category="Prefeituras">
+                        <td>PREFEITURA DE LAPAO</td>
+                        <td class="text-center">12/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - LAPAO - NF 8248</td>
+                        <td class="text-right font-mono" data-val="9192.7">R$ 9.192,70</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="9192.7">R$ 9.192,70</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA DE LAPAO" data-category="Prefeituras">
+                        <td>PREFEITURA DE LAPAO</td>
+                        <td class="text-center">12/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - LAPAO - NF 8250</td>
+                        <td class="text-right font-mono" data-val="9135.0">R$ 9.135,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="9135.0">R$ 9.135,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA DE LAPAO" data-category="Prefeituras">
+                        <td>PREFEITURA DE LAPAO</td>
+                        <td class="text-center">12/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE - LAPAO - NF 8251</td>
+                        <td class="text-right font-mono" data-val="8120.0">R$ 8.120,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="8120.0">R$ 8.120,00</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #ec489915;">
+                    <td colspan="3" class="font-bold">Subtotal - PREFEITURA DE LAPAO</td>
+                    <td class="text-right font-bold font-mono" data-val="31010.5">R$ 31.010,50</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="31010.5">R$ 31.010,50</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras" style="background-color: #14b8a6; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 PREFEITURA MUNICIPAL BONITO — 18 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras" style="background-color: #14b8a6cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8168</td>
+                        <td class="text-right font-mono" data-val="3721.0">R$ 3.721,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3721.0">R$ 3.721,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8169</td>
+                        <td class="text-right font-mono" data-val="3875.0">R$ 3.875,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3875.0">R$ 3.875,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8170</td>
+                        <td class="text-right font-mono" data-val="3715.0">R$ 3.715,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3715.0">R$ 3.715,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8171</td>
+                        <td class="text-right font-mono" data-val="3272.0">R$ 3.272,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3272.0">R$ 3.272,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8172</td>
+                        <td class="text-right font-mono" data-val="3138.0">R$ 3.138,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3138.0">R$ 3.138,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8173</td>
+                        <td class="text-right font-mono" data-val="3647.0">R$ 3.647,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3647.0">R$ 3.647,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8174</td>
+                        <td class="text-right font-mono" data-val="1877.0">R$ 1.877,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1877.0">R$ 1.877,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8175</td>
+                        <td class="text-right font-mono" data-val="1688.0">R$ 1.688,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1688.0">R$ 1.688,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8177</td>
+                        <td class="text-right font-mono" data-val="1225.0">R$ 1.225,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1225.0">R$ 1.225,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8178</td>
+                        <td class="text-right font-mono" data-val="1249.0">R$ 1.249,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1249.0">R$ 1.249,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8179</td>
+                        <td class="text-right font-mono" data-val="1573.0">R$ 1.573,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1573.0">R$ 1.573,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8176</td>
+                        <td class="text-right font-mono" data-val="2715.0">R$ 2.715,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="2715.0">R$ 2.715,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8180</td>
+                        <td class="text-right font-mono" data-val="2173.0">R$ 2.173,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="2173.0">R$ 2.173,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8181</td>
+                        <td class="text-right font-mono" data-val="1197.0">R$ 1.197,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1197.0">R$ 1.197,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8182</td>
+                        <td class="text-right font-mono" data-val="413.86">R$ 413,86</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="413.86">R$ 413,86</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8183</td>
+                        <td class="text-right font-mono" data-val="3881.0">R$ 3.881,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3881.0">R$ 3.881,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8184</td>
+                        <td class="text-right font-mono" data-val="3973.0">R$ 3.973,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3973.0">R$ 3.973,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL BONITO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL BONITO</td>
+                        <td class="text-center">03/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE BONITO - NF 8185</td>
+                        <td class="text-right font-mono" data-val="2442.0">R$ 2.442,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="2442.0">R$ 2.442,00</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #14b8a615;">
+                    <td colspan="3" class="font-bold">Subtotal - PREFEITURA MUNICIPAL BONITO</td>
+                    <td class="text-right font-bold font-mono" data-val="45774.86">R$ 45.774,86</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="45774.86">R$ 45.774,86</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras" style="background-color: #f97316; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 PREFEITURA MUNICIPAL DE MULUNGU DO MORRO — 12 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras" style="background-color: #f97316cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">09/04/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO - NF 7898</td>
+                        <td class="text-right font-mono" data-val="4000.0">R$ 4.000,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="4000.0">R$ 4.000,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">09/04/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO - NF 7899</td>
+                        <td class="text-right font-mono" data-val="1300.0">R$ 1.300,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1300.0">R$ 1.300,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">07/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE-FUNSAUDE NF - 8033</td>
+                        <td class="text-right font-mono" data-val="20937.0">R$ 20.937,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="20937.0">R$ 20.937,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">07/05/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO NF - 8035</td>
+                        <td class="text-right font-mono" data-val="4200.0">R$ 4.200,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="4200.0">R$ 4.200,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">07/05/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO NF - 8036</td>
+                        <td class="text-right font-mono" data-val="1000.0">R$ 1.000,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1000.0">R$ 1.000,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE-FUNSAUDE - NF 8238</td>
+                        <td class="text-right font-mono" data-val="17504.59">R$ 17.504,59</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="17504.59">R$ 17.504,59</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE-FUNSAUDE - NF 8239</td>
+                        <td class="text-right font-mono" data-val="4980.19">R$ 4.980,19</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="4980.19">R$ 4.980,19</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO - NF 8240</td>
+                        <td class="text-right font-mono" data-val="2900.0">R$ 2.900,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="2900.0">R$ 2.900,00</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO - NF 8241</td>
+                        <td class="text-right font-mono" data-val="890.5">R$ 890,50</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="890.5">R$ 890,50</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE EDUCACAO DE MULUNGU DO MORRO - NF 8242</td>
+                        <td class="text-right font-mono" data-val="4850.59">R$ 4.850,59</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="4850.59">R$ 4.850,59</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE EDUCACAO DE MULUNGU DO MORRO - NF 8243</td>
+                        <td class="text-right font-mono" data-val="2100.6">R$ 2.100,60</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="2100.6">R$ 2.100,60</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE MULUNGU DO MORRO" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE ASSISTENCIA SOCIAL -FMAS - NF 8244</td>
+                        <td class="text-right font-mono" data-val="3684.44">R$ 3.684,44</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3684.44">R$ 3.684,44</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #f9731615;">
+                    <td colspan="3" class="font-bold">Subtotal - PREFEITURA MUNICIPAL DE MULUNGU DO MORRO</td>
+                    <td class="text-right font-bold font-mono" data-val="68347.90999999999">R$ 68.347,91</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="68347.90999999999">R$ 68.347,91</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="PREFEITURA MUNICIPAL DE PINTADAS" data-category="Prefeituras" style="background-color: #3b82f6; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 PREFEITURA MUNICIPAL DE PINTADAS — 2 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="PREFEITURA MUNICIPAL DE PINTADAS" data-category="Prefeituras" style="background-color: #3b82f6cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE PINTADAS" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE PINTADAS</td>
+                        <td class="text-center">08/05/2026</td>
+                        <td>Prefeitura de Pintadas (consumo ref 01/04/2026 a 30/04/2026)</td>
+                        <td class="text-right font-mono" data-val="10639.13">R$ 10.639,13</td>
+                        <td class="text-right font-mono" data-val="9734.8">R$ 9.734,80</td>
+                        <td class="text-right font-mono" data-val="904.33">R$ 904,33</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE PINTADAS" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE PINTADAS</td>
+                        <td class="text-center">09/06/2026</td>
+                        <td>Prefeitura de Pintadas (consumo ref 01/05/2026 a 31/05/2026)</td>
+                        <td class="text-right font-mono" data-val="9583.46">R$ 9.583,46</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="9583.46">R$ 9.583,46</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #3b82f615;">
+                    <td colspan="3" class="font-bold">Subtotal - PREFEITURA MUNICIPAL DE PINTADAS</td>
+                    <td class="text-right font-bold font-mono" data-val="20222.589999999997">R$ 20.222,59</td>
+                    <td class="text-right font-bold font-mono" data-val="9734.8">R$ 9.734,80</td>
+                    <td class="text-right font-bold font-mono" data-val="10487.789999999999">R$ 10.487,79</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="PREFEITURA MUNICIPAL DE UIBAI" data-category="Prefeituras" style="background-color: #84cc16; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 PREFEITURA MUNICIPAL DE UIBAI — 2 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="PREFEITURA MUNICIPAL DE UIBAI" data-category="Prefeituras" style="background-color: #84cc16cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE UIBAI" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE UIBAI</td>
+                        <td class="text-center">05/05/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE UIBAI NF - 7989</td>
+                        <td class="text-right font-mono" data-val="17670.03">R$ 17.670,03</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="17670.03">R$ 17.670,03</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPAL DE UIBAI" data-category="Prefeituras">
+                        <td>PREFEITURA MUNICIPAL DE UIBAI</td>
+                        <td class="text-center">01/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE UIBAI- NF 8145</td>
+                        <td class="text-right font-mono" data-val="22503.37">R$ 22.503,37</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="22503.37">R$ 22.503,37</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #84cc1615;">
+                    <td colspan="3" class="font-bold">Subtotal - PREFEITURA MUNICIPAL DE UIBAI</td>
+                    <td class="text-right font-bold font-mono" data-val="40173.399999999994">R$ 40.173,40</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="40173.399999999994">R$ 40.173,40</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #a855f7; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO — 3 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras" style="background-color: #a855f7cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">05/05/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE PRESIDENTE DUTRA NF - 7987</td>
+                        <td class="text-right font-mono" data-val="14210.6">R$ 14.210,60</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="14210.6">R$ 14.210,60</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">02/06/2026</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DE PRESIDENTE DUTRA BAHIA  FUMSAUDE - NF 8153</td>
+                        <td class="text-right font-mono" data-val="78540.61">R$ 78.540,61</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="78540.61">R$ 78.540,61</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO" data-category="Prefeituras">
+                        <td>PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO</td>
+                        <td class="text-center">02/06/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE PRESIDENTE DUTRA - NF 8154</td>
+                        <td class="text-right font-mono" data-val="12350.59">R$ 12.350,59</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="12350.59">R$ 12.350,59</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #a855f715;">
+                    <td colspan="3" class="font-bold">Subtotal - PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO</td>
+                    <td class="text-right font-bold font-mono" data-val="105101.8">R$ 105.101,80</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="105101.8">R$ 105.101,80</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="Prefeitura Municipal de Canarana" data-category="Prefeituras" style="background-color: #0ea5e9; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 Prefeitura Municipal de Canarana — 3 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="Prefeitura Municipal de Canarana" data-category="Prefeituras" style="background-color: #0ea5e9cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="Prefeitura Municipal de Canarana" data-category="Prefeituras">
+                        <td>Prefeitura Municipal de Canarana</td>
+                        <td class="text-center">30/12/2025</td>
+                        <td>FUNDO MUNICIPAL DE SAUDE DO MUNICIPIO DE CANARANA - NF 7261</td>
+                        <td class="text-right font-mono" data-val="14598.94">R$ 14.598,94</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="14598.94">R$ 14.598,94</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="Prefeitura Municipal de Canarana" data-category="Prefeituras">
+                        <td>Prefeitura Municipal de Canarana</td>
+                        <td class="text-center">23/03/2026</td>
+                        <td>FUNDO MUNICIPAL DE  ASSISTENCIA SOCIAL DE CANARANA - NF 7762</td>
+                        <td class="text-right font-mono" data-val="2000.15">R$ 2.000,15</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="2000.15">R$ 2.000,15</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="Prefeitura Municipal de Canarana" data-category="Prefeituras">
+                        <td>Prefeitura Municipal de Canarana</td>
+                        <td class="text-center">06/05/2026</td>
+                        <td>PREFEITURA MUNICIPAL DE CANARANA NF - 7998</td>
+                        <td class="text-right font-mono" data-val="6000.23">R$ 6.000,23</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="6000.23">R$ 6.000,23</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #0ea5e915;">
+                    <td colspan="3" class="font-bold">Subtotal - Prefeitura Municipal de Canarana</td>
+                    <td class="text-right font-bold font-mono" data-val="22599.32">R$ 22.599,32</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="22599.32">R$ 22.599,32</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+            <tr class="category-header-row" data-category="Camaras" style="background-color: #d97706; color: white;">
+                <td colspan="6" class="font-bold" style="font-size: 1.1rem; padding: 0.75rem 1rem;">
+                    🏷️ Camaras — 3 parcela(s) | Total em Aberto: R$ 31.920,63
+                </td>
+            </tr>
+        
+
+                <tr class="client-header-row" data-client="CAMARA MUNICIPAL DE IRECE" data-category="Camaras" style="background-color: #e11d48; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 CAMARA MUNICIPAL DE IRECE — 2 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="CAMARA MUNICIPAL DE IRECE" data-category="Camaras" style="background-color: #e11d48cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="CAMARA MUNICIPAL DE IRECE" data-category="Camaras">
+                        <td>CAMARA MUNICIPAL DE IRECE</td>
+                        <td class="text-center">30/04/2026</td>
+                        <td>CAMARA MUNICIPAL DE IRECE NF - 7958</td>
+                        <td class="text-right font-mono" data-val="13100.63">R$ 13.100,63</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="13100.63">R$ 13.100,63</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="CAMARA MUNICIPAL DE IRECE" data-category="Camaras">
+                        <td>CAMARA MUNICIPAL DE IRECE</td>
+                        <td class="text-center">29/05/2026</td>
+                        <td>CAMARA MUNICIPAL DE IRECE- NF 8118</td>
+                        <td class="text-right font-mono" data-val="12500.0">R$ 12.500,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="12500.0">R$ 12.500,00</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #e11d4815;">
+                    <td colspan="3" class="font-bold">Subtotal - CAMARA MUNICIPAL DE IRECE</td>
+                    <td class="text-right font-bold font-mono" data-val="25600.629999999997">R$ 25.600,63</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="25600.629999999997">R$ 25.600,63</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="CAMARA MUNICIPAL DE VEREADORES DE CAFARNAUM" data-category="Camaras" style="background-color: #65a30d; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 CAMARA MUNICIPAL DE VEREADORES DE CAFARNAUM — 1 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="CAMARA MUNICIPAL DE VEREADORES DE CAFARNAUM" data-category="Camaras" style="background-color: #65a30dcc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="CAMARA MUNICIPAL DE VEREADORES DE CAFARNAUM" data-category="Camaras">
+                        <td>CAMARA MUNICIPAL DE VEREADORES DE CAFARNAUM</td>
+                        <td class="text-center">08/05/2026</td>
+                        <td>CAMARA MUNICIPAL DE CAFARNAUM - NF 8048</td>
+                        <td class="text-right font-mono" data-val="6320.0">R$ 6.320,00</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="6320.0">R$ 6.320,00</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #65a30d15;">
+                    <td colspan="3" class="font-bold">Subtotal - CAMARA MUNICIPAL DE VEREADORES DE CAFARNAUM</td>
+                    <td class="text-right font-bold font-mono" data-val="6320.0">R$ 6.320,00</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="6320.0">R$ 6.320,00</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+            <tr class="category-header-row" data-category="Avulsos" style="background-color: #6366f1; color: white;">
+                <td colspan="6" class="font-bold" style="font-size: 1.1rem; padding: 0.75rem 1rem;">
+                    🏷️ Avulsos — 18 parcela(s) | Total em Aberto: R$ 45.720,59
+                </td>
+            </tr>
+        
+
+                <tr class="client-header-row" data-client="BENEDITO LEITE" data-category="Avulsos" style="background-color: #6366f1; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 BENEDITO LEITE — 1 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="BENEDITO LEITE" data-category="Avulsos" style="background-color: #6366f1cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="BENEDITO LEITE" data-category="Avulsos">
+                        <td>BENEDITO LEITE</td>
+                        <td class="text-center">09/06/2026</td>
+                        <td>Benedito Leite - Consumo: 01/05 a 31/05 (Sem NF)</td>
+                        <td class="text-right font-mono" data-val="5250.35">R$ 5.250,35</td>
+                        <td class="text-right font-mono" data-val="1711.64">R$ 1.711,64</td>
+                        <td class="text-right font-mono" data-val="3538.71">R$ 3.538,71</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #6366f115;">
+                    <td colspan="3" class="font-bold">Subtotal - BENEDITO LEITE</td>
+                    <td class="text-right font-bold font-mono" data-val="5250.35">R$ 5.250,35</td>
+                    <td class="text-right font-bold font-mono" data-val="1711.64">R$ 1.711,64</td>
+                    <td class="text-right font-bold font-mono" data-val="3538.71">R$ 3.538,71</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="CDS IRECE" data-category="Avulsos" style="background-color: #10b981; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 CDS IRECE — 1 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="CDS IRECE" data-category="Avulsos" style="background-color: #10b981cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="CDS IRECE" data-category="Avulsos">
+                        <td>CDS IRECE</td>
+                        <td class="text-center">28/04/2026</td>
+                        <td>CDS IRECE CONSUMO 01/03 a 31/03 - SEM NF</td>
+                        <td class="text-right font-mono" data-val="557.11">R$ 557,11</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="557.11">R$ 557,11</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #10b98115;">
+                    <td colspan="3" class="font-bold">Subtotal - CDS IRECE</td>
+                    <td class="text-right font-bold font-mono" data-val="557.11">R$ 557,11</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="557.11">R$ 557,11</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="FAZENDA BOM VIVER" data-category="Avulsos" style="background-color: #f59e0b; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 FAZENDA BOM VIVER — 1 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="FAZENDA BOM VIVER" data-category="Avulsos" style="background-color: #f59e0bcc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="FAZENDA BOM VIVER" data-category="Avulsos">
+                        <td>FAZENDA BOM VIVER</td>
+                        <td class="text-center">08/05/2026</td>
+                        <td>Consumo referente a 01/04/2026 a 30/04/2026</td>
+                        <td class="text-right font-mono" data-val="700.59">R$ 700,59</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="700.59">R$ 700,59</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #f59e0b15;">
+                    <td colspan="3" class="font-bold">Subtotal - FAZENDA BOM VIVER</td>
+                    <td class="text-right font-bold font-mono" data-val="700.59">R$ 700,59</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="700.59">R$ 700,59</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="GORDO DA BATERIA" data-category="Avulsos" style="background-color: #ef4444; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 GORDO DA BATERIA — 2 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="GORDO DA BATERIA" data-category="Avulsos" style="background-color: #ef4444cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="GORDO DA BATERIA" data-category="Avulsos">
+                        <td>GORDO DA BATERIA</td>
+                        <td class="text-center">08/05/2026</td>
+                        <td>Consumo ref 01/01/2026 a 30/04/2026 (SEM NF)</td>
+                        <td class="text-right font-mono" data-val="446.31">R$ 446,31</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="446.31">R$ 446,31</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="GORDO DA BATERIA" data-category="Avulsos">
+                        <td>GORDO DA BATERIA</td>
+                        <td class="text-center">09/06/2026</td>
+                        <td>Consumo ref 01/05/2026 a 31/05/2026 (SEM NF)</td>
+                        <td class="text-right font-mono" data-val="729.76">R$ 729,76</td>
+                        <td class="text-right font-mono" data-val="600.0">R$ 600,00</td>
+                        <td class="text-right font-mono" data-val="129.76">R$ 129,76</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #ef444415;">
+                    <td colspan="3" class="font-bold">Subtotal - GORDO DA BATERIA</td>
+                    <td class="text-right font-bold font-mono" data-val="1176.07">R$ 1.176,07</td>
+                    <td class="text-right font-bold font-mono" data-val="600.0">R$ 600,00</td>
+                    <td class="text-right font-bold font-mono" data-val="576.0699999999999">R$ 576,07</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA" data-category="Avulsos" style="background-color: #8b5cf6; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA — 3 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA" data-category="Avulsos" style="background-color: #8b5cf6cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA" data-category="Avulsos">
+                        <td>JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA</td>
+                        <td class="text-center">16/01/2026</td>
+                        <td>JE SEGURANCA</td>
+                        <td class="text-right font-mono" data-val="3363.62">R$ 3.363,62</td>
+                        <td class="text-right font-mono" data-val="3000.0">R$ 3.000,00</td>
+                        <td class="text-right font-mono" data-val="363.62">R$ 363,62</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA" data-category="Avulsos">
+                        <td>JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA</td>
+                        <td class="text-center">10/02/2026</td>
+                        <td>JE SEGURANCA consumo 01/01/2026 a 31/01/2026</td>
+                        <td class="text-right font-mono" data-val="3409.97">R$ 3.409,97</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3409.97">R$ 3.409,97</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA" data-category="Avulsos">
+                        <td>JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA</td>
+                        <td class="text-center">10/03/2026</td>
+                        <td>JE SEGURANCA consumo 01/02 a 28/02</td>
+                        <td class="text-right font-mono" data-val="1325.89">R$ 1.325,89</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="1325.89">R$ 1.325,89</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #8b5cf615;">
+                    <td colspan="3" class="font-bold">Subtotal - JE VIGILANCIA E SEGURANCA PATRIMONIAL LTDA</td>
+                    <td class="text-right font-bold font-mono" data-val="8099.4800000000005">R$ 8.099,48</td>
+                    <td class="text-right font-bold font-mono" data-val="3000.0">R$ 3.000,00</td>
+                    <td class="text-right font-bold font-mono" data-val="5099.48">R$ 5.099,48</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="MACHADO" data-category="Avulsos" style="background-color: #06b6d4; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 MACHADO — 3 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="MACHADO" data-category="Avulsos" style="background-color: #06b6d4cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="MACHADO" data-category="Avulsos">
+                        <td>MACHADO</td>
+                        <td class="text-center">01/04/2026</td>
+                        <td>Consumo referente ao período de 01/03 a 31/03</td>
+                        <td class="text-right font-mono" data-val="396.97">R$ 396,97</td>
+                        <td class="text-right font-mono" data-val="159.94">R$ 159,94</td>
+                        <td class="text-right font-mono" data-val="237.03">R$ 237,03</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="MACHADO" data-category="Avulsos">
+                        <td>MACHADO</td>
+                        <td class="text-center">08/05/2026</td>
+                        <td>Consumo referente ao período de 01/04/2026 a 30/04/2026 (SEM NF)</td>
+                        <td class="text-right font-mono" data-val="992.14">R$ 992,14</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="992.14">R$ 992,14</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="MACHADO" data-category="Avulsos">
+                        <td>MACHADO</td>
+                        <td class="text-center">09/06/2026</td>
+                        <td>Consumo referente ao período de 01/05/2026 a 31/05/2026 (SEM NF)</td>
+                        <td class="text-right font-mono" data-val="3565.69">R$ 3.565,69</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="3565.69">R$ 3.565,69</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #06b6d415;">
+                    <td colspan="3" class="font-bold">Subtotal - MACHADO</td>
+                    <td class="text-right font-bold font-mono" data-val="4954.8">R$ 4.954,80</td>
+                    <td class="text-right font-bold font-mono" data-val="159.94">R$ 159,94</td>
+                    <td class="text-right font-bold font-mono" data-val="4794.860000000001">R$ 4.794,86</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="PREFEITURA MUNICIPIAL DE ABAIRA" data-category="Avulsos" style="background-color: #ec4899; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 PREFEITURA MUNICIPIAL DE ABAIRA — 3 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="PREFEITURA MUNICIPIAL DE ABAIRA" data-category="Avulsos" style="background-color: #ec4899cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPIAL DE ABAIRA" data-category="Avulsos">
+                        <td>PREFEITURA MUNICIPIAL DE ABAIRA</td>
+                        <td class="text-center">29/04/2026</td>
+                        <td>Consumo ref 01/03 a 30/03/2026 - (PREFEITURA ABAIRA - SEM NF)</td>
+                        <td class="text-right font-mono" data-val="14559.05">R$ 14.559,05</td>
+                        <td class="text-right font-mono" data-val="3294.14">R$ 3.294,14</td>
+                        <td class="text-right font-mono" data-val="11264.91">R$ 11.264,91</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPIAL DE ABAIRA" data-category="Avulsos">
+                        <td>PREFEITURA MUNICIPIAL DE ABAIRA</td>
+                        <td class="text-center">03/05/2026</td>
+                        <td>Consumo ref 31/03 a 30/04/2026 - (PREFEITURA ABAIRA - SEM NF)</td>
+                        <td class="text-right font-mono" data-val="5721.68">R$ 5.721,68</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="5721.68">R$ 5.721,68</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="PREFEITURA MUNICIPIAL DE ABAIRA" data-category="Avulsos">
+                        <td>PREFEITURA MUNICIPIAL DE ABAIRA</td>
+                        <td class="text-center">16/06/2026</td>
+                        <td>Consumo ref 01/05 a 31/05/2026 - (PREFEITURA ABAIRA - SEM NF)</td>
+                        <td class="text-right font-mono" data-val="8351.49">R$ 8.351,49</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="8351.49">R$ 8.351,49</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #ec489915;">
+                    <td colspan="3" class="font-bold">Subtotal - PREFEITURA MUNICIPIAL DE ABAIRA</td>
+                    <td class="text-right font-bold font-mono" data-val="28632.22">R$ 28.632,22</td>
+                    <td class="text-right font-bold font-mono" data-val="3294.14">R$ 3.294,14</td>
+                    <td class="text-right font-bold font-mono" data-val="25338.08">R$ 25.338,08</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="RODOCON" data-category="Avulsos" style="background-color: #14b8a6; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 RODOCON — 2 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="RODOCON" data-category="Avulsos" style="background-color: #14b8a6cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="RODOCON" data-category="Avulsos">
+                        <td>RODOCON</td>
+                        <td class="text-center">08/06/2026</td>
+                        <td>RODOCON CONSTRUCOES RODOVIARIAS LTDA - NF 8188</td>
+                        <td class="text-right font-mono" data-val="2915.07">R$ 2.915,07</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="2915.07">R$ 2.915,07</td>
+                    </tr>
+                
+
+                    <tr class="data-row" data-client="RODOCON" data-category="Avulsos">
+                        <td>RODOCON</td>
+                        <td class="text-center">08/06/2026</td>
+                        <td>RODOCON CONSTRUCOES RODOVIARIAS LTDA - NF 8189</td>
+                        <td class="text-right font-mono" data-val="626.41">R$ 626,41</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="626.41">R$ 626,41</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #14b8a615;">
+                    <td colspan="3" class="font-bold">Subtotal - RODOCON</td>
+                    <td class="text-right font-bold font-mono" data-val="3541.48">R$ 3.541,48</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="3541.48">R$ 3.541,48</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="W A MULTIPLA DISTRIBUIDOR LTDA" data-category="Avulsos" style="background-color: #f97316; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 W A MULTIPLA DISTRIBUIDOR LTDA — 1 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="W A MULTIPLA DISTRIBUIDOR LTDA" data-category="Avulsos" style="background-color: #f97316cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="W A MULTIPLA DISTRIBUIDOR LTDA" data-category="Avulsos">
+                        <td>W A MULTIPLA DISTRIBUIDOR LTDA</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>W A MÚLTIPLA DISTRIBUIDOR LTDA - NF 8235</td>
+                        <td class="text-right font-mono" data-val="819.89">R$ 819,89</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="819.89">R$ 819,89</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #f9731615;">
+                    <td colspan="3" class="font-bold">Subtotal - W A MULTIPLA DISTRIBUIDOR LTDA</td>
+                    <td class="text-right font-bold font-mono" data-val="819.89">R$ 819,89</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="819.89">R$ 819,89</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+
+                <tr class="client-header-row" data-client="WANTEL TECNOLOGIA LTDA." data-category="Avulsos" style="background-color: #3b82f6; color: white;">
+                    <td colspan="6" class="font-bold" style="font-size: 1rem; padding: 0.75rem 1rem;">
+                        📦 WANTEL TECNOLOGIA LTDA. — 1 parcela(s)
+                    </td>
+                </tr>
+                <tr class="client-subheader-row" data-client="WANTEL TECNOLOGIA LTDA." data-category="Avulsos" style="background-color: #3b82f6cc; color: white;">
+                    <td colspan="3" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 500;"></td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Total</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor Recebido</td>
+                    <td class="text-right" style="padding: 0.4rem 1rem; font-size: 0.75rem; font-weight: 600;">Valor em Aberto</td>
+                </tr>
+            
+
+                    <tr class="data-row" data-client="WANTEL TECNOLOGIA LTDA." data-category="Avulsos">
+                        <td>WANTEL TECNOLOGIA LTDA.</td>
+                        <td class="text-center">11/06/2026</td>
+                        <td>WANTEL TECNOLOGIA - NF 8236</td>
+                        <td class="text-right font-mono" data-val="754.32">R$ 754,32</td>
+                        <td class="text-right font-mono" data-val="0.0">R$ 0,00</td>
+                        <td class="text-right font-mono" data-val="754.32">R$ 754,32</td>
+                    </tr>
+                
+
+                <tr class="subtotal-row" style="background-color: #3b82f615;">
+                    <td colspan="3" class="font-bold">Subtotal - WANTEL TECNOLOGIA LTDA.</td>
+                    <td class="text-right font-bold font-mono" data-val="754.32">R$ 754,32</td>
+                    <td class="text-right font-bold font-mono" data-val="0.0">R$ 0,00</td>
+                    <td class="text-right font-bold font-mono" data-val="754.32">R$ 754,32</td>
+                </tr>
+                <tr><td colspan="6" style="padding: 0.5rem; background: var(--bg-primary);"></td></tr>
+            
+                    <tfoot>
+                        <tr class="grand-total-row">
+                            <td colspan="3" class="font-bold">TOTAL GERAL</td>
+                            <td class="text-right font-bold font-mono" id="grand-total-original">R$ 1.478.594,83</td>
+                            <td class="text-right font-bold font-mono" id="grand-total-received">R$ 18.500,52</td>
+                            <td class="text-right font-bold font-mono" id="grand-total-open">R$ 1.460.094,31</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PASSWORD_HASH = "ac58e7b9b938f1405b66c73f22a2831885ebcefa416811553bf0006a79f28154";
+
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function checkLogin() {
+            const input = document.getElementById('login-password').value;
+            const hash = await sha256(input);
+            if (hash === PASSWORD_HASH) {
+                document.getElementById('login-overlay').classList.add('hidden');
+                document.getElementById('dashboard-content').style.display = 'block';
+                sessionStorage.setItem('augustus_auth', '1');
+                applyFilters();
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+                document.getElementById('login-password').value = '';
+            }
+        }
+
+        if (sessionStorage.getItem('augustus_auth') === '1') {
+            document.getElementById('login-overlay').classList.add('hidden');
+            document.getElementById('dashboard-content').style.display = 'block';
+        }
+
+        const rawChartData = [{"client": "IPIRA PREFEITURA GABINETE DO PREFEITO", "m": 514144.76, "o": 0.0, "t": 514144.76, "category": "Prefeituras"}, {"client": "CAFARNAUM PREFEITURA GABINETE DO PREFEITO", "m": 247517.45, "o": 0.0, "t": 247517.45, "category": "Prefeituras"}, {"client": "IRECE PREFEITURA GABINETE DO PREFEITO", "m": 118815.3, "o": 0.0, "t": 118815.3, "category": "Prefeituras"}, {"client": "PALMEIRAS PREFEITURA GABINETE DO PREFEITO", "m": 112186.82, "o": 0.0, "t": 112186.82, "category": "Prefeituras"}, {"client": "PRESIDENTE DUTRA PREFEITURA GABINETE DO PREFEITO", "m": 105101.8, "o": 0.0, "t": 105101.8, "category": "Prefeituras"}, {"client": "PREFEITURA MUNICIPAL DE MULUNGU DO MORRO", "m": 68347.91, "o": 0.0, "t": 68347.91, "category": "Prefeituras"}, {"client": "FUNDO MUNICIPAL DE SAUDE DE BARRO ALTO", "m": 60662.9, "o": 0.0, "t": 60662.9, "category": "Prefeituras"}, {"client": "PREFEITURA MUNICIPAL BONITO", "m": 45774.86, "o": 0.0, "t": 45774.86, "category": "Prefeituras"}, {"client": "PREFEITURA MUNICIPAL DE UIBAI", "m": 40173.4, "o": 0.0, "t": 40173.4, "category": "Prefeituras"}, {"client": "PREFEITURA DE LAPAO", "m": 31010.5, "o": 0.0, "t": 31010.5, "category": "Prefeituras"}];
+
+        function formatBRL(val) {
+            return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        function parseRowDate(text) {
+            const parts = text.split(/[\/\-]/);
+            if (parts.length === 3) {
+                const d = parseInt(parts[0], 10);
+                const m = parseInt(parts[1], 10) - 1;
+                const y = parseInt(parts[2], 10);
+                if (!isNaN(y) && !isNaN(m) && !isNaN(d)) return new Date(y, m, d);
+            }
+            const fallback = new Date(text);
+            return isNaN(fallback.getTime()) ? null : fallback;
+        }
+
+        function applyFilters() {
+            const startStr = document.getElementById('date-start').value;
+            const endStr = document.getElementById('date-end').value;
+            const clientFilter = document.getElementById('client-filter').value;
+            const searchText = (document.getElementById('search-input').value || '').toLowerCase().trim();
+
+            const startDate = startStr ? new Date(startStr + 'T00:00:00') : null;
+            const endDate = endStr ? new Date(endStr + 'T23:59:59') : null;
+
+            const table = document.getElementById('receivables-table');
+            const rows = table.querySelectorAll('.data-row');
+            const headers = table.querySelectorAll('.client-header-row');
+            const subheaders = table.querySelectorAll('.client-subheader-row');
+            const subtotals = table.querySelectorAll('.subtotal-row');
+            const categoryHeaders = table.querySelectorAll('.category-header-row');
+            const spacers = table.querySelectorAll('tr td[colspan="6"]');
+
+            let grandTotalOriginal = 0, grandTotalReceived = 0, grandTotalOpen = 0;
+            let visibleClientsSet = new Set();
+            let clientTripCounts = {};
+            let clientOpenValues = {};
+            let clientTotals = {};
+
+            rows.forEach(row => {
+                const rowClient = row.getAttribute('data-client');
+                const textDate = row.cells[1].innerText;
+                const textTrip = row.cells[2].innerText.toLowerCase();
+                const rowDate = parseRowDate(textDate);
+
+                let matchesPeriod = true;
+                if (rowDate) {
+                    if (startDate && rowDate < startDate) matchesPeriod = false;
+                    if (endDate && rowDate > endDate) matchesPeriod = false;
+                } else matchesPeriod = false;
+
+                let matchesClient = !clientFilter || rowClient === clientFilter;
+                let matchesSearch = !searchText || textDate.toLowerCase().includes(searchText) || textTrip.includes(searchText);
+
+                const isVisible = matchesPeriod && matchesClient && matchesSearch;
+                row.style.display = isVisible ? '' : 'none';
+
+                if (isVisible) {
+                    visibleClientsSet.add(rowClient);
+                    var origVal = parseFloat(row.cells[3].getAttribute('data-val')) || 0;
+                    var recvVal = parseFloat(row.cells[4].getAttribute('data-val')) || 0;
+                    var openVal = parseFloat(row.cells[5].getAttribute('data-val')) || 0;
+                    grandTotalOriginal += origVal;
+                    grandTotalReceived += recvVal;
+                    grandTotalOpen += openVal;
+                    if (!clientTripCounts[rowClient]) { clientTripCounts[rowClient] = 0; clientOpenValues[rowClient] = 0; }
+                    clientTripCounts[rowClient]++;
+                    clientOpenValues[rowClient] += openVal;
+                    if (!clientTotals[rowClient]) clientTotals[rowClient] = { original: 0, received: 0, open: 0 };
+                    clientTotals[rowClient].original += origVal;
+                    clientTotals[rowClient].received += recvVal;
+                    clientTotals[rowClient].open += openVal;
+                }
+            });
+
+            headers.forEach(h => {
+                const hClient = h.getAttribute('data-client');
+                const hasVisible = [...rows].some(r => r.getAttribute('data-client') === hClient && r.style.display !== 'none');
+                h.style.display = hasVisible ? '' : 'none';
+            });
+            subheaders.forEach(sh => {
+                const shClient = sh.getAttribute('data-client');
+                const hasVisible = [...rows].some(r => r.getAttribute('data-client') === shClient && r.style.display !== 'none');
+                sh.style.display = hasVisible ? '' : 'none';
+            });
+            subtotals.forEach(st => {
+                const stClient = st.querySelector('td').innerText.replace('Subtotal - ', '');
+                const hasVisible = [...rows].some(r => r.getAttribute('data-client') === stClient && r.style.display !== 'none');
+                st.style.display = hasVisible ? '' : 'none';
+                if (hasVisible && clientTotals[stClient]) {
+                    st.cells[1].innerText = formatBRL(clientTotals[stClient].original);
+                    st.cells[2].innerText = formatBRL(clientTotals[stClient].received);
+                    st.cells[3].innerText = formatBRL(clientTotals[stClient].open);
+                }
+            });
+            categoryHeaders.forEach(ch => {
+                const cat = ch.getAttribute('data-category');
+                const hasVisible = [...rows].some(r => r.getAttribute('data-category') === cat && r.style.display !== 'none');
+                ch.style.display = hasVisible ? '' : 'none';
+            });
+            spacers.forEach(s => {
+                const parentRow = s.parentElement;
+                const prevRow = parentRow.previousElementSibling;
+                parentRow.style.display = prevRow && prevRow.classList.contains('subtotal-row') && prevRow.style.display !== 'none' ? '' : 'none';
+            });
+
+            document.getElementById('kpi-clients').innerText = visibleClientsSet.size;
+            document.getElementById('kpi-original').innerText = formatBRL(grandTotalOpen);
+            document.getElementById('grand-total-original').innerText = formatBRL(grandTotalOriginal);
+            document.getElementById('grand-total-received').innerText = formatBRL(grandTotalReceived);
+            document.getElementById('grand-total-open').innerText = formatBRL(grandTotalOpen);
+
+            updateTop10(clientTripCounts, clientOpenValues);
+            renderChart(clientOpenValues);
+        }
+
+        function updateTop10(tripCounts, openValues) {
+            const sorted = Object.entries(tripCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+            const listEl = document.getElementById('top10-list');
+            listEl.innerHTML = sorted.map(([client, trips], i) => {
+                const openVal = openValues[client] || 0;
+                return '<li class="top10-item" data-client="' + client + '"><span class="top10-rank">' + (i+1) + '</span><span class="top10-client">' + client + '</span><span class="top10-trips">' + trips + ' nota(s)</span><span class="top10-separator"> - </span><span class="top10-value">' + formatBRL(openVal) + '</span></li>';
+            }).join('');
+        }
+
+        let chartInstance = null;
+
+        function renderChart(clientOpenValues) {
+            const gridColor = '#334155';
+            const labelColor = '#94a3b8';
+            const sorted = Object.entries(clientOpenValues).sort((a, b) => b[1] - a[1]).slice(0, 10);
+            if (chartInstance) chartInstance.destroy();
+            const ctx = document.getElementById('balanceChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sorted.map(d => d[0]),
+                    datasets: [{
+                        label: 'Valor em Aberto',
+                        data: sorted.map(d => d[1]),
+                        backgroundColor: '#fbbf24',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function(context) { return 'Em Aberto: ' + formatBRL(context.parsed.x); } } }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: gridColor },
+                            ticks: { color: labelColor, font: { family: 'Inter', size: 10 }, callback: function(value) { return 'R$ ' + value.toLocaleString('pt-BR'); } }
+                        },
+                        y: { grid: { color: 'transparent' }, ticks: { color: labelColor, font: { family: 'Inter', size: 12 } } }
+                    }
+                }
+            });
+        }
+
+        function clearFilters() {
+            document.getElementById('client-filter').value = '';
+            document.getElementById('search-input').value = '';
+            document.getElementById('date-start').value = '2025-12-26';
+            document.getElementById('date-end').value = '2026-06-16';
+            applyFilters();
+        }
+
+        window.addEventListener('load', () => {
+            if (sessionStorage.getItem('augustus_auth') === '1') {
+                applyFilters();
+            }
+        });
+    </script>
+</body>
+</html>
